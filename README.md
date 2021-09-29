@@ -1,4 +1,4 @@
-# LSL inlet plugin
+# LSL inlet plugin [![DOI](https://zenodo.org/badge/404116274.svg)](https://zenodo.org/badge/latestdoi/404116274)
 A simple plugin to recieve from one LSL EEG and one LSL Markers stream on the network.
 
 ## Usage
