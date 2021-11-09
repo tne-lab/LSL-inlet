@@ -89,6 +89,7 @@ namespace LSLinletNode
 		*/
 		~LSLinletStream() {
 			inlet.close_stream();
+			inletEvents.close_stream();
 		}
 
 		bool connectToStream(float *sr, int *nChans, int nSampsIn)
