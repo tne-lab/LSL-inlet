@@ -2,7 +2,7 @@
 A simple plugin to recieve from one LSL EEG and one LSL Markers stream on the network.
 
 ## Usage
-Note that an EEG stream must be present on the network, otherwise the plugin will hang. This is a downfall of the lsl api that I couldn't find a workaround for.
+Note that an EEG and marker stream must be present on the network, otherwise the plugin will hang. This is a downfall of the lsl api that I couldn't find a workaround for.
 
 ### Windows
 This is currently built for windows only. I believe you can download the latest lsl libraries for your system, put them in the libs folder and update the CMakeLists accordingly. Contact @markschatza for assistance. 
