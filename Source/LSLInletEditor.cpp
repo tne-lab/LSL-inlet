@@ -104,7 +104,6 @@ void LSLInletEditor::startAcquisition()
 {
     // Disable the whole GUI
     discoverButton->setEnabled(false);
-    //streamSelector->setEnabled(false);
     fileButton->setEnabled(false);
     dataStreamSelectorBox->setEnabled(false);
     markerStreamSelectorBox->setEnabled(false);
@@ -114,7 +113,6 @@ void LSLInletEditor::stopAcquisition()
 {
     // Reenable the whole GUI
     discoverButton->setEnabled(true);
-    //streamSelector->setEnabled(true);
     fileButton->setEnabled(true);
     dataStreamSelectorBox->setEnabled(true);
     markerStreamSelectorBox->setEnabled(true);
@@ -145,7 +143,7 @@ void LSLInletEditor::buttonClicked(Button *button)
             {
                 if (s.channel_count() != 1)
                 {
-                    //LOGC("Skipping irregular stream ", s.name(), " because it doesn't have exactly 1 channel.\n", s.as_xml());
+                    std::cout << "Skipping irregular stream " << s.name() << " because it doesn't have exactly 1 channel." << std::endl;
                     continue;
                 }
                 markerStreamSelectorBox->addItem(s.name() + " (" + s.type() + ")", i + 1);

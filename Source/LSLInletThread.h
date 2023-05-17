@@ -28,16 +28,13 @@
 
 #include <lsl_cpp.h>
 
-//const float DEFAULT_SAMPLE_RATE = 30000.0f;
 const float DEFAULT_SAMPLE_RATE = 10000.0f;
 const float DEFAULT_DATA_SCALE = 1.0f;
 const int DEFAULT_NUM_SAMPLES = 256;
-const int DEFAULT_NUM_CHANNELS = 1;//64;
+const int DEFAULT_NUM_CHANNELS = 1;;
 
-//const float DEFAULT_DATA_SCALE = 1.0f;
 const int STREAM_SELECTION_UNDEFINED = -1;
 const double TIMESTAMP_UNDEFINED = -1;
-//const size_t DEFAULT_NUM_SAMPLES = 1024;
 
 class LSLInletThread : public DataThread
 {
@@ -94,15 +91,13 @@ public:
     float getBitVolts(const DataChannel* chan) const override;
     int getNumChannels() const;
     bool isReady() override;
-    void resizeBuffers() override;
 
-    ///* Passes the processor's info objects to DataThread, to allow them to be configured */
-    //void updateSettings(OwnedArray<ContinuousChannel> *continuousChannels,
-    //                    OwnedArray<EventChannel> *eventChannels,
-    //                    OwnedArray<SpikeChannel> *spikeChannels,
-    //                    OwnedArray<DataStream> *sourceStreams,
-    //                    OwnedArray<DeviceInfo> *devices,
-    //                    OwnedArray<ConfigurationObject> *configurationObjects) override;
+    // Called by the GUI to resize buffers. Simply calls reallocateBuffers.
+    void resizeBuffers() override;
+    
+    // Called when the signal chain updates and before acquisiton starts to resize internal buffers
+    bool reallocateBuffers();
+
 
     // ------------------------------------------------------------
     //                   VIRTUAL METHODS
@@ -112,18 +107,9 @@ public:
     /** Create the DataThread custom editor */
     GenericEditor* createEditor(SourceNode *sn) override;
 
-    //// ** Allows the DataThread plugin to respond to messages sent by other processors */
-    //void handleBroadcastMessage(String msg) override;
-
-    //// ** Allows the DataThread plugin to handle a config message while acquisition is not active. */
-    //String handleConfigMessage(String msg) override;
-
     // User defined
-    float sample_rate;
     float data_scale;
-    int num_samp;
-    int num_channels;
-
+    
 private:
     template <typename T>
     void printBuffer(const char *desc, T *buf, size_t size);
@@ -134,15 +120,20 @@ private:
     lsl::stream_inlet *dataStream;
     lsl::stream_inlet *markersStream;
 
+    // Temporary buffers
     float *dataBuffer;
     double *timestampBuffer;
-
     int64 *sampleNumbers;
-    uint64 *ttlEventWords;
+
+    // Map of incoming LSL string events to Open Ephys event channels (typically 1-8)
     std::map<std::string, uint64> eventMap;
 
     int numChannels;
     double initialTimestamp;
+
+    // Number of samples to pull from the LSL each iteration
+    int num_samp;
+    float sample_rate;
 };
 
 #endif

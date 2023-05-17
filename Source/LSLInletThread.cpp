@@ -31,7 +31,6 @@ LSLInletThread::LSLInletThread(SourceNode *sn) : DataThread(sn),
                                                  numSamples(DEFAULT_NUM_SAMPLES),
                                                  dataScale(DEFAULT_DATA_SCALE),
                                                  selectedDataStream(STREAM_SELECTION_UNDEFINED),
-    num_channels(DEFAULT_NUM_CHANNELS),
     num_samp(DEFAULT_NUM_SAMPLES),
     data_scale(DEFAULT_DATA_SCALE),
     sample_rate(DEFAULT_SAMPLE_RATE)
@@ -46,7 +45,6 @@ LSLInletThread::LSLInletThread(SourceNode *sn) : DataThread(sn),
     timestampBuffer = (double *)malloc(numSamples * sizeof(double));
 
     sampleNumbers = (int64 *)malloc(numSamples * sizeof(int64));
-    ttlEventWords = (uint64 *)malloc(numSamples * sizeof(uint64));
 }
 
 LSLInletThread::~LSLInletThread()
@@ -54,7 +52,6 @@ LSLInletThread::~LSLInletThread()
     free(dataBuffer);
     free(timestampBuffer);
     free(sampleNumbers);
-    free(ttlEventWords);
 }
 
 void LSLInletThread::discover()
@@ -96,8 +93,7 @@ bool LSLInletThread::updateBuffer()
         initialTimestamp = timestampBuffer[0];
     }
 
-    // Compute sample numbers and
-    // convert time from absolute to relative
+    // Compute sample numbers and convert time from absolute to relative
     for (int i = 0; i < data_samples_read; i++)
     {
         sampleNumbers[i] = totalSamples + i;
@@ -110,16 +106,19 @@ bool LSLInletThread::updateBuffer()
         dataBuffer[i] = (float)(dataScale * dataBuffer[i]);
     }
 
-
-    //int addToBuffer(float* data, int64 * timestamps, uint64 * eventCodes, int numItems, int chunkSize = 1);
-
+    // Add data to the GUI's source buffers
     sourceBuffers[0]->addToBuffer(
         dataBuffer,
         sampleNumbers,
-        //timestampBuffer,
-        ttlEventWords,
+        ttlEventWords.getRawDataPointer(),
         (int)data_samples_read,
         1);
+
+
+    // Clear TTL buffer
+    for (int i = 0; i < ttlEventWords.size(); i++) {
+        ttlEventWords.set(i, 0);
+    }
 
     totalSamples += data_samples_read;
 
@@ -135,21 +134,12 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
         return;
     }
 
-    // clear TTL buffer
-    for (int i = 0; i < samples_to_read; i++)
-    {
-        ttlEventWords[i] = 0;
-    }
-
     try
     {
-        std::string sample;
+        std::string eventSample;
         int i = 0;
-        //double ts = markersStream->pull_sample(&sample, 1, 0.0);
-        while (double ts = markersStream->pull_sample(&sample, 1, 0.0))
+        while (double ts = markersStream->pull_sample(&eventSample, 1, 0.0))
         {
-            // broadcast the marker text to the signal chain
-            //broadcastMessage(sample);
 
             // try to find closest event timestamp among sample timestamps
             bool found_match = false;
@@ -165,19 +155,27 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
             }
             if (!found_match)
             {
-                //LOGE("Discarding marker because it couldn't be matched with data sample timestamp");
+                std::cout << "Discarding marker because it couldn't be matched with data sample timestamp " << eventSample << std::endl;
                 break;
             }
 
-            if (eventMap.find(sample) == eventMap.end())
+            // If we don't have a channel map, convert string to int and check if in range of OE event channels
+            if (eventMap.size() == 0)
             {
-                //LOGC("Mapping not found for marker ", sample);
-                //ttlEventWords[0] = sample;
+                uint64 eventAsInt = std::stoi(eventSample);
+                if (eventAsInt > 0 && eventAsInt <= 8)
+                {
+                    ttlEventWords.setUnchecked(0, eventAsInt);
+                }
+            } 
+            else if (eventMap.find(eventSample) == eventMap.end())
+            {
+                std::cout << "Mapping not found for marker " << eventSample << std::endl;
             }
             else
             {
-                uint64 eventInd = eventMap[sample];
-                ttlEventWords[0] = eventMap[sample];
+                uint64 eventAsInt = eventMap[eventSample];
+                ttlEventWords.setUnchecked(0, eventAsInt);
             }
 
             if (++i >= samples_to_read)
@@ -196,83 +194,77 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
     }
 }
 
+bool LSLInletThread::reallocateBuffers()
+{
+    if (selectedDataStream == STREAM_SELECTION_UNDEFINED || selectedDataStream >= availableStreams.size())
+    {
+        std::cout << "Skipping buffer re-allocation. Stream selection undefined" << std::endl;
+        return false;
+    }
+
+    int newNumChannels = availableStreams[selectedDataStream].channel_count();
+
+    numChannels = newNumChannels;
+    sample_rate = (float)availableStreams[selectedDataStream].nominal_srate();
+    sourceBuffers[0]->resize(newNumChannels, 100000);
+    ttlEventWords.resize(num_samp);
+    for (int i = 0; i < num_samp; i++)
+    {
+        ttlEventWords.set(i, 0);
+    }
+
+    if (auto newBuffer = (float*)realloc(dataBuffer, newNumChannels * numSamples * sizeof(float)))
+    {
+        dataBuffer = newBuffer;
+    }
+    else
+    {
+        std::cout << "Failed to allocate data buffer" << std::endl;
+        return false;
+    }
+    if (auto newBuffer = (double*)realloc(timestampBuffer, numSamples * sizeof(double)))
+    {
+        timestampBuffer = newBuffer;
+    }
+    else
+    {
+        std::cout << "Failed to allocate timestamp buffer" << std::endl;
+        return false;
+    }
+
+    if (auto newBuffer = (int64*)realloc(sampleNumbers, numSamples * sizeof(int64)))
+    {
+        sampleNumbers = newBuffer;
+    }
+    else
+    {
+        std::cout << "Failed to allocate sample numbers buffer" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 void LSLInletThread::resizeBuffers()
 {
-    if (selectedDataStream != STREAM_SELECTION_UNDEFINED && availableStreams.size() > selectedDataStream)
-    {
-
-        int newNumChannels = availableStreams[selectedDataStream].channel_count();
-
-        if (numChannels != newNumChannels || num_channels != newNumChannels)
-        {
-            numChannels = newNumChannels;
-            num_channels = newNumChannels;
-            sample_rate = (float)availableStreams[selectedDataStream].nominal_srate();
-            sourceBuffers[0]->resize(newNumChannels, 100000);
-
-            if (auto newBuffer = (float*)realloc(dataBuffer, newNumChannels * numSamples * sizeof(float)))
-            {
-                dataBuffer = newBuffer;
-            }
-            else
-            {
-                //LOGE("Failed to allocate data buffer");
-                //return false;
-            }
-            if (auto newBuffer = (double*)realloc(timestampBuffer, numSamples * sizeof(double)))
-            {
-                timestampBuffer = newBuffer;
-            }
-            else
-            {
-                //LOGE("Failed to allocate timestamp buffer");
-                //return false;
-            }
-
-            if (auto newBuffer = (int64*)realloc(sampleNumbers, numSamples * sizeof(int64)))
-            {
-                sampleNumbers = newBuffer;
-            }
-            else
-            {
-                //LOGE("Failed to allocate sample numbers buffer");
-                //return false;
-            }
-            if (auto newBuffer = (uint64*)realloc(ttlEventWords, numSamples * sizeof(uint64)))
-            {
-                ttlEventWords = newBuffer;
-
-                // initialize the TTL buffer to 0
-                for (int i = 0; i < numSamples; i++)
-                {
-                    ttlEventWords[i] = 0;
-                }
-            }
-            else
-            {
-                //LOGE("Failed to allocate TTL word buffer");
-                //return false;
-            }
-        }
-
-    }
-    //numChannels = availableStreams[selectedDataStream].channel_count();
+    reallocateBuffers();
 }
+
 bool LSLInletThread::foundInputSource()
 {
-    return selectedDataStream != STREAM_SELECTION_UNDEFINED; // true;
+    return selectedDataStream != STREAM_SELECTION_UNDEFINED;
 }
 
 bool LSLInletThread::isReady()
 {
-    return selectedDataStream != STREAM_SELECTION_UNDEFINED;
+    return true;
 }
 
 bool LSLInletThread::startAcquisition()
 {
     if (selectedDataStream == STREAM_SELECTION_UNDEFINED)
     {
-        //LOGC("Not starting acquisition because no data stream was selected");
+        std::cout << "Not starting acquisition because no data stream was selected" << std::endl;
         return false;
     }
 
@@ -281,52 +273,9 @@ bool LSLInletThread::startAcquisition()
 
     this->dataStream = new lsl::stream_inlet(availableStreams[selectedDataStream]);
 
-    sample_rate = (float)availableStreams[selectedDataStream].nominal_srate();
-
-    numChannels = availableStreams[selectedDataStream].channel_count();
-    sourceBuffers[0]->resize(numChannels, 100000);
-
-    if (auto newBuffer = (float *)realloc(dataBuffer, numChannels * numSamples * sizeof(float)))
+    if (!reallocateBuffers())
     {
-        dataBuffer = newBuffer;
-    }
-    else
-    {
-        //LOGE("Failed to allocate data buffer");
-        return false;
-    }
-    if (auto newBuffer = (double *)realloc(timestampBuffer, numSamples * sizeof(double)))
-    {
-        timestampBuffer = newBuffer;
-    }
-    else
-    {
-        //LOGE("Failed to allocate timestamp buffer");
-        return false;
-    }
-
-    if (auto newBuffer = (int64 *)realloc(sampleNumbers, numSamples * sizeof(int64)))
-    {
-        sampleNumbers = newBuffer;
-    }
-    else
-    {
-        //LOGE("Failed to allocate sample numbers buffer");
-        return false;
-    }
-    if (auto newBuffer = (uint64 *)realloc(ttlEventWords, numSamples * sizeof(uint64)))
-    {
-        ttlEventWords = newBuffer;
-
-        // initialize the TTL buffer to 0
-        for (int i = 0; i < numSamples; i++)
-        {
-            ttlEventWords[i] = 0;
-        }
-    }
-    else
-    {
-        //LOGE("Failed to allocate TTL word buffer");
+        CoreServices::sendStatusMessage("Failed to allocate space for internal buffers. Please delete the plugin and try again.");
         return false;
     }
 
@@ -366,84 +315,11 @@ bool LSLInletThread::stopAcquisition()
     return true;
 }
 
-//void LSLInletThread::updateSettings(OwnedArray<ContinuousChannel> *continuousChannels,
-//                                    OwnedArray<EventChannel> *eventChannels,
-//                                    OwnedArray<SpikeChannel> *spikeChannels,
-//                                    OwnedArray<DataStream> *sourceStreams,
-//                                    OwnedArray<DeviceInfo> *devices,
-//                                    OwnedArray<ConfigurationObject> *configurationObjects)
-//{
-//    continuousChannels->clear();
-//    eventChannels->clear();
-//    devices->clear();
-//    spikeChannels->clear();
-//    configurationObjects->clear();
-//    sourceStreams->clear();
-//
-//    if (selectedDataStream == STREAM_SELECTION_UNDEFINED)
-//    {
-//        return;
-//    }
-//
-//    numChannels = availableStreams[selectedDataStream].channel_count();
-//
-//    DataStream::Settings settings{
-//        availableStreams[selectedDataStream].name(),
-//        availableStreams[selectedDataStream].type(),
-//        availableStreams[selectedDataStream].source_id(),
-//
-//        (float)availableStreams[selectedDataStream].nominal_srate()
-//
-//    };
-//    sourceStreams->add(new DataStream(settings));
-//    for (int ch = 0; ch < availableStreams[selectedDataStream].channel_count(); ch++)
-//    {
-//        ContinuousChannel::Settings settings{
-//            ContinuousChannel::Type::ELECTRODE,
-//            "CH" + String(ch + 1),
-//            "description",
-//            "identifier",
-//
-//            0.195f,
-//
-//            sourceStreams->getFirst()};
-//
-//        continuousChannels->add(new ContinuousChannel(settings));
-//    }
-//
-//    EventChannel::Settings eventSettings{
-//        EventChannel::Type::TTL,
-//        "Events" + availableStreams[selectedDataStream].source_id(),
-//        "description",
-//        "identifier",
-//        sourceStreams->getFirst(),
-//        64};
-//
-//    const auto ec = new EventChannel(eventSettings);
-//
-//    eventChannels->add(ec);
-//}
-
-//GenericEditor* LSLinlet::createEditor(SourceNode* sn)
-//{
-//    return new LSLinletEditor(sn, this);
-//}
 
 GenericEditor* LSLInletThread::createEditor(SourceNode *sn)
 {
     return new LSLInletEditor(sn, this);
-    //LSLInletEditor editor = LSLInletEditor(sn, this);
-    //return editor;
 }
-
-//void LSLInletThread::handleBroadcastMessage(String msg)
-//{
-//}
-//
-//String LSLInletThread::handleConfigMessage(String msg)
-//{
-//    return "";
-//}
 
 bool LSLInletThread::setMarkersMappingPath(std::string filePath)
 {
@@ -453,6 +329,8 @@ bool LSLInletThread::setMarkersMappingPath(std::string filePath)
     if (!file)
     {
         //LOGE("Cannot open file: ", filePath);
+        std::cout << "Cannot open marker config file " << filePath << std::endl;
+        CoreServices::sendStatusMessage("Cannot open marker config file");
         return false;
     }
 
@@ -487,7 +365,6 @@ bool LSLInletThread::setMarkersMappingPath(std::string filePath)
                 std::string marker = trim(pair.substr(0, pos));
                 uint64 ttl = std::stoul(trim(pair.substr(pos + 1, pair.size())));
                 eventMap[marker] = ttl;
-                //LOGC("Saved mapping for marker: ", marker, "=", ttl);
             }
         }
     }
@@ -508,13 +385,18 @@ bool LSLInletThread::setMarkersMappingPath(std::string filePath)
 
 int LSLInletThread::getNumChannels() const
 {
-    return num_channels;
+    if (selectedDataStream == STREAM_SELECTION_UNDEFINED)
+    {
+        return 0;
+    }
+
+    return numChannels;
 }
 
 int LSLInletThread::getNumDataOutputs(DataChannel::DataChannelTypes type, int subproc) const
 {
     if (type == DataChannel::HEADSTAGE_CHANNEL)
-        return num_channels;
+        return numChannels;
     else
         return 0;
 }
