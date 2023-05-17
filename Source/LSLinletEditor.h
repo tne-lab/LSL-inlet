@@ -1,74 +1,90 @@
-#ifndef __EPHYSSOCKETEDITORH__
-#define __EPHYSSOCKETEDITORH__
+/*
+ ------------------------------------------------------------------
 
-#ifdef _WIN32
-#include <Windows.h>
-#endif
+ This file is part of the Open Ephys GUI
+ Copyright (C) 2022 Open Ephys
 
-#include <VisualizerEditorHeaders.h>
-//#include <EditorHeaders.h>
+ ------------------------------------------------------------------
 
-namespace LSLinletNode
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ */
+
+#ifndef LSLINLETEDITOR_H_DEFINED
+#define LSLINLETEDITOR_H_DEFINED
+
+#include <EditorHeaders.h>
+#include "LSLInletThread.h"
+
+class LSLInletEditor : public GenericEditor,
+					   public Button::Listener,
+					   public ComboBox::Listener,
+					   public Label::Listener
 {
-    class LSLinlet;
+public:
+	/** The class constructor, used to initialize any members. */
+	LSLInletEditor(GenericProcessor *parentNode, LSLInletThread *inlet);
 
-    class LSLinletEditor : public GenericEditor, public Label::Listener
-    {
+	/** The class destructor, used to deallocate memory */
+	~LSLInletEditor() {}
 
-    public:
+	/** Button listener callback, called by button when pressed. */
+	void buttonClicked(Button *button) override;
 
-        LSLinletEditor(GenericProcessor* parentNode, LSLinlet *node);
+	/** Called when a ComboBox has its selected item changed. */
+	void comboBoxChanged(ComboBox *comboBoxThatHasChanged) override;
 
-        /** Button listener callback, called by button when pressed. */
-        void buttonEvent(Button* button);
+	/** Called when label is changed */
+	void labelTextChanged(Label *label) override;
 
-        /** Called by processor graph in beginning of the acqusition, disables editor completly. */
-        void startAcquisition();
+	/** Called by processor graph in beginning of the acqusition, disables editor completly. */
+	void startAcquisition() override;
 
-        /** Called by processor graph at the end of the acqusition, reenables editor completly. */
-        void stopAcquisition();
+	/** Called by processor graph at the end of the acqusition, reenables editor completly. */
+	void stopAcquisition() override;
 
-        /** Called when configuration is saved. Adds editors config to xml. */
-        void saveCustomParameters(XmlElement* xml) override;
+	/** Called when configuration is saved. Adds editors config to xml. */
+	void saveCustomParameters(XmlElement* xml) override;
 
-        /** Called when configuration is loaded. Reads editors config from xml. */
-        void loadCustomParameters(XmlElement* xml) override;
+	/** Called when configuration is loaded. Reads editors config from xml. */
+	void loadCustomParameters(XmlElement* xml) override;
 
-        /** Called when label is changed */
-        void labelTextChanged(Label* label);
+private:
+	File lastFilePath;
 
-    private:
+	// Button that tried to connect to client
+	ScopedPointer<UtilityButton> discoverButton;
 
-        // Button that tried to connect to client
-        ScopedPointer<UtilityButton> connectButton;
+	// Data stream selection
+	ScopedPointer<Label> dataStreamSelectorLabel;
+	ScopedPointer<ComboBox> dataStreamSelectorBox;
 
-        // Buffer size
-        ScopedPointer<Label> bufferSizeMainLabel;
+	// Marker stream selection
+	ScopedPointer<Label> markerStreamSelectorLabel;
+	ScopedPointer<ComboBox> markerStreamSelectorBox;
 
-        // x label
-        ScopedPointer<Label> xLabel;
+	// Marker stream mapping
+	ScopedPointer<UtilityButton> fileButton;
+	ScopedPointer<Label> markerStreamMappingLabel;
+	ScopedPointer<Label> fileNameLabel;
 
-        // Chans
-        ScopedPointer<Label> channelCountLabel;
-        ScopedPointer<Label> channelCountInput;
+	// Scaling
+	ScopedPointer<Label> scaleLabel;
+	ScopedPointer<Label> scaleInput;
 
-        // Samples
-        ScopedPointer<Label> bufferSizeLabel;
-        ScopedPointer<Label> bufferSizeInput;
-
-        // Fs
-        ScopedPointer<Label> sampleRateLabel;
-        ScopedPointer<Label> sampleRateInput;
-
-        // Scale
-        ScopedPointer<Label> scaleLabel;
-        ScopedPointer<Label> scaleInput;
-
-        // Parent node
-        LSLinlet* node;
-
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LSLinletEditor);
-    };
-}
+	// Parent node
+	LSLInletThread *inletThread;
+};
 
 #endif
