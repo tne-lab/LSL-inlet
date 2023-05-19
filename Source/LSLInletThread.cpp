@@ -28,12 +28,11 @@
 #include <sstream>
 
 LSLInletThread::LSLInletThread(SourceNode *sn) : DataThread(sn),
-                                                 numSamples(DEFAULT_NUM_SAMPLES),
                                                  dataScale(DEFAULT_DATA_SCALE),
                                                  selectedDataStream(STREAM_SELECTION_UNDEFINED),
-    num_samp(DEFAULT_NUM_SAMPLES),
-    data_scale(DEFAULT_DATA_SCALE),
-    sample_rate(DEFAULT_SAMPLE_RATE)
+    numSamples(DEFAULT_NUM_SAMPLES),
+    sample_rate(DEFAULT_SAMPLE_RATE),
+    markerMapPath("")
 {
     numChannels = 1; // start with 1 channel, will resize the buffers as needed
     // calculate data buffer size instead of using a fixed value if the function of (numChannels, numSamples) can be determined
@@ -149,7 +148,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
                 if (timestampBuffer[j] >= ts)
                 {
                     i = j;
-                    found_match = true;
+                    found_match = true; 
                     break;
                 }
             }
@@ -163,9 +162,9 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
             if (eventMap.size() == 0)
             {
                 uint64 eventAsInt = std::stoi(eventSample);
-                if (eventAsInt > 0 && eventAsInt <= 8)
+                if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
                 {
-                    ttlEventWords.setUnchecked(0, eventAsInt);
+                    ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
                 }
             } 
             else if (eventMap.find(eventSample) == eventMap.end())
@@ -175,7 +174,10 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
             else
             {
                 uint64 eventAsInt = eventMap[eventSample];
-                ttlEventWords.setUnchecked(0, eventAsInt);
+                if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
+                {
+                    ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
+                }
             }
 
             if (++i >= samples_to_read)
@@ -199,7 +201,7 @@ bool LSLInletThread::reallocateBuffers()
     if (selectedDataStream == STREAM_SELECTION_UNDEFINED || selectedDataStream >= availableStreams.size())
     {
         std::cout << "Skipping buffer re-allocation. Stream selection undefined" << std::endl;
-        return false;
+        return true;
     }
 
     int newNumChannels = availableStreams[selectedDataStream].channel_count();
@@ -207,8 +209,8 @@ bool LSLInletThread::reallocateBuffers()
     numChannels = newNumChannels;
     sample_rate = (float)availableStreams[selectedDataStream].nominal_srate();
     sourceBuffers[0]->resize(newNumChannels, 100000);
-    ttlEventWords.resize(num_samp);
-    for (int i = 0; i < num_samp; i++)
+    ttlEventWords.resize(numSamples);
+    for (int i = 0; i < numSamples; i++)
     {
         ttlEventWords.set(i, 0);
     }
@@ -247,7 +249,10 @@ bool LSLInletThread::reallocateBuffers()
 
 void LSLInletThread::resizeBuffers()
 {
-    reallocateBuffers();
+    if (!reallocateBuffers())
+    {
+        CoreServices::sendStatusMessage("Failed to allocate space for internal buffers. Please delete the plugin and try again.");
+    }
 }
 
 bool LSLInletThread::foundInputSource()
@@ -272,12 +277,6 @@ bool LSLInletThread::startAcquisition()
     initialTimestamp = TIMESTAMP_UNDEFINED;
 
     this->dataStream = new lsl::stream_inlet(availableStreams[selectedDataStream]);
-
-    if (!reallocateBuffers())
-    {
-        CoreServices::sendStatusMessage("Failed to allocate space for internal buffers. Please delete the plugin and try again.");
-        return false;
-    }
 
     if (selectedMarkersStream != STREAM_SELECTION_UNDEFINED)
     {
@@ -323,6 +322,10 @@ GenericEditor* LSLInletThread::createEditor(SourceNode *sn)
 
 bool LSLInletThread::setMarkersMappingPath(std::string filePath)
 {
+    if (filePath.length() == 0)
+    {
+        return false;
+    }
     eventMap.clear();
     std::ifstream file(filePath);
 
@@ -333,6 +336,8 @@ bool LSLInletThread::setMarkersMappingPath(std::string filePath)
         CoreServices::sendStatusMessage("Cannot open marker config file");
         return false;
     }
+
+    markerMapPath = filePath;
 
     // Perform a naive JSON parsing
     try
@@ -413,7 +418,7 @@ float LSLInletThread::getSampleRate(int subproc) const
 
 float LSLInletThread::getBitVolts(const DataChannel* ch) const
 {
-    return data_scale;
+    return dataScale;
 }
 
 inline std::string LSLInletThread::trim(const std::string const_str)

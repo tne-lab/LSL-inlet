@@ -32,6 +32,7 @@ const float DEFAULT_SAMPLE_RATE = 10000.0f;
 const float DEFAULT_DATA_SCALE = 1.0f;
 const int DEFAULT_NUM_SAMPLES = 256;
 const int DEFAULT_NUM_CHANNELS = 1;;
+const int MAX_CHANNELS = 64;
 
 const int STREAM_SELECTION_UNDEFINED = -1;
 const double TIMESTAMP_UNDEFINED = -1;
@@ -44,11 +45,6 @@ public:
 
     /** The class destructor, used to deallocate memory */
     ~LSLInletThread();
-
-    /** User defined scaling factor for samples */
-    float dataScale;
-    /** Number of samples to read during each update cycle */
-    int numSamples;
 
     /** Index (in the discovered streams list) of the user selected LSL stream */
     int selectedDataStream;
@@ -108,7 +104,8 @@ public:
     GenericEditor* createEditor(SourceNode *sn) override;
 
     // User defined
-    float data_scale;
+    std::string markerMapPath;
+    float dataScale;
     
 private:
     template <typename T>
@@ -127,12 +124,12 @@ private:
 
     // Map of incoming LSL string events to Open Ephys event channels (typically 1-8)
     std::map<std::string, uint64> eventMap;
-
+    
     int numChannels;
     double initialTimestamp;
 
     // Number of samples to pull from the LSL each iteration
-    int num_samp;
+    int numSamples;
     float sample_rate;
 };
 

@@ -147,13 +147,15 @@ void LSLInletEditor::buttonClicked(Button *button)
                     continue;
                 }
                 markerStreamSelectorBox->addItem(s.name() + " (" + s.type() + ")", i + 1);
+                selectedMarkerStreamIndex = 1;
             }
         }
 
+        inletThread->selectedMarkersStream = selectedMarkerStreamIndex;
+        markerStreamSelectorBox->setSelectedItemIndex(selectedMarkerStreamIndex);
+
         dataStreamSelectorBox->setSelectedItemIndex(selectedDataStreamIndex);
         inletThread->selectedDataStream = selectedDataStreamIndex;
-        markerStreamSelectorBox->setSelectedItemIndex(selectedMarkerStreamIndex);
-        inletThread->selectedMarkersStream = STREAM_SELECTION_UNDEFINED;
 
         CoreServices::updateSignalChain(this);
     }
@@ -222,6 +224,7 @@ void LSLInletEditor::saveCustomParameters(XmlElement *xmlNode)
     XmlElement *parameters = xmlNode->createNewChildElement("PARAMETERS");
 
     parameters->setAttribute("scale", scaleInput->getText());
+    parameters->setAttribute("marker_path", inletThread->markerMapPath);
 }
 
 void LSLInletEditor::loadCustomParameters(XmlElement *xmlNode)
@@ -232,6 +235,16 @@ void LSLInletEditor::loadCustomParameters(XmlElement *xmlNode)
         {
             scaleInput->setText(subNode->getStringAttribute("scale", String(DEFAULT_DATA_SCALE)), dontSendNotification);
             inletThread->dataScale = subNode->getDoubleAttribute("scale", DEFAULT_DATA_SCALE);
+        }
+
+        if (subNode->hasAttribute("marker_path"))
+        {
+            std::string path = subNode->getStringAttribute("marker_path", "").toStdString();
+            if (inletThread->setMarkersMappingPath(path))
+            {
+                fileNameLabel->setText(path.substr(path.find_last_of("/\\") + 1), dontSendNotification);
+            }
+            
         }
     }
 }

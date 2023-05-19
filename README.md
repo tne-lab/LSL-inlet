@@ -4,6 +4,8 @@ A simple plugin to recieve from one LSL EEG and one LSL Markers stream on the ne
 ## Usage
 ![LSL Inlet image](./Resources/lsl-overview.png)
 
+Works with or without a JSON mapping file. If there is no JSON file present, only event channels 1-8 will be accepted. See [the sample JSON mapping file](./Resources/event-map.json).
+
 ### Known bugs
 Sending events to any channels aside from 1 or 2 may cause strange behavior. Use event channels 3-8 with caution.
 
