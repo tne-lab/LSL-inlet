@@ -162,10 +162,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
             if (eventMap.size() == 0)
             {
                 uint64 eventAsInt = std::stoi(eventSample);
-                if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
-                {
-                    ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
-                }
+                ttlEventWords.setUnchecked(0, eventAsInt);
             } 
             else if (eventMap.find(eventSample) == eventMap.end())
             {
@@ -174,10 +171,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
             else
             {
                 uint64 eventAsInt = eventMap[eventSample];
-                if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
-                {
-                    ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
-                }
+                ttlEventWords.setUnchecked(0, eventAsInt);
             }
 
             if (++i >= samples_to_read)
