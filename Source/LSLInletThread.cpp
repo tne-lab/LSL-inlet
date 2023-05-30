@@ -166,6 +166,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
                 {
                     ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
                 }
+                std::cout << "LSL: Received event on channel: " << eventAsInt << std::endl;
             } 
             else if (eventMap.find(eventSample) == eventMap.end())
             {
@@ -178,6 +179,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
                 {
                     ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
                 }
+                std::cout << "LSL: Received event on channel: " << eventAsInt << std::endl;
             }
 
             if (++i >= samples_to_read)
