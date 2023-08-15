@@ -2,7 +2,7 @@
 ------------------------------------------------------------------
 
 This file is part of the Open Ephys GUI
-Copyright (C) 2013 Open Ephys
+Copyright (C) 2022 Open Ephys
 
 ------------------------------------------------------------------
 
@@ -18,12 +18,14 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 */
 
 #include <PluginInfo.h>
-#include "LSLinlet.h"
+
+#include "LSLInletThread.h"
+
 #include <string>
+
 #ifdef WIN32
 #include <Windows.h>
 #define EXPORT __declspec(dllexport)
@@ -32,25 +34,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 using namespace Plugin;
+
 #define NUM_PLUGINS 1
 
-extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo* info)
+extern "C" EXPORT void getLibInfo(Plugin::LibraryInfo *info)
 {
+	/* API version, defined by the GUI source.
+	Should not be changed to ensure it is always equal to the one used in the latest codebase.
+	The GUI refuses to load plugins with mismatched API versions */
 	info->apiVersion = PLUGIN_API_VER;
-	info->name = "Ephys Socket";
-	info->libVersion = 1;
+	info->name = "Lab Streaming Layer IO";
+	info->libVersion = "0.1.2";
 	info->numPlugins = NUM_PLUGINS;
 }
 
-extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
+extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo *info)
 {
 	switch (index)
 	{
+		// one case per plugin. This example is for a processor which connects directly to the signal chain
 	case 0:
-		info->type = Plugin::PLUGIN_TYPE_DATA_THREAD;
+
+		info->type = Plugin::Type::DATA_THREAD;
 		info->dataThread.name = "LSL Inlet";
-		info->dataThread.creator = &createDataThread<LSLinletNode::LSLinlet>;
+		info->dataThread.creator = &createDataThread<LSLInletThread>;
 		break;
+
 	default:
 		return -1;
 		break;
@@ -60,8 +69,8 @@ extern "C" EXPORT int getPluginInfo(int index, Plugin::PluginInfo* info)
 
 #ifdef WIN32
 BOOL WINAPI DllMain(IN HINSTANCE hDllHandle,
-	IN DWORD     nReason,
-	IN LPVOID    Reserved)
+					IN DWORD nReason,
+					IN LPVOID Reserved)
 {
 	return TRUE;
 }

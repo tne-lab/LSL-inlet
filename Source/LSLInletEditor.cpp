@@ -1,226 +1,246 @@
-#include "LSLinletEditor.h"
-#include "LSLinlet.h"
+/*
+ ------------------------------------------------------------------
 
-#include <string>
-#include <iostream>
+ This file is part of the Open Ephys GUI
+ Copyright (C) 2022 Open Ephys
 
-using namespace LSLinletNode;
+ ------------------------------------------------------------------
 
-LSLinletEditor::LSLinletEditor(GenericProcessor* parentNode, LSLinlet* socket) : GenericEditor(parentNode, false)
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ */
+
+#include "LSLInletEditor.h"
+
+LSLInletEditor::LSLInletEditor(GenericProcessor *parentNode, LSLInletThread *thread)
+    : GenericEditor(parentNode)
 {
-    node = socket;
+    lastFilePath = CoreServices::getDefaultUserSaveDirectory();
+    inletThread = thread;
 
-    desiredWidth = 240;
+    desiredWidth = 220;
 
     // Add connect button
-    connectButton = new UtilityButton("CONNECT", Font("Small Text", 12, Font::bold));
-    connectButton->setRadius(3.0f);
-    connectButton->setBounds(10, 35, 70, 20);
-    connectButton->addListener(this);
-    addAndMakeVisible(connectButton);
+    discoverButton = new UtilityButton("Refresh streams", Font("Small Text", 12, Font::bold));
+    discoverButton->setRadius(3.0f);
+    discoverButton->setBounds(10, 35, 100, 20);
+    discoverButton->addListener(this);
+    addAndMakeVisible(discoverButton);
 
-    //---
-    bufferSizeMainLabel = new Label("BUFFER SIZE", "BUFFER SIZE");
-    bufferSizeMainLabel->setFont(Font("Small Text", 12, Font::plain));
-    bufferSizeMainLabel->setBounds(114, 30, 95, 15);
-    bufferSizeMainLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(bufferSizeMainLabel);
+    // Data stream combo box
+    dataStreamSelectorLabel = new Label("Select a data stream", "Select a data stream");
+    dataStreamSelectorLabel->setFont(Font("Small Text", 10, Font::plain));
+    dataStreamSelectorLabel->setBounds(10, 60, 160, 8);
+    dataStreamSelectorLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(dataStreamSelectorLabel);
 
-    // Num chans
-    channelCountLabel = new Label("CHANNELS", "CHANNELS");
-    channelCountLabel->setFont(Font("Small Text", 10, Font::plain));
-    channelCountLabel->setBounds(92, 48, 65, 8);
-    channelCountLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(channelCountLabel);
+    dataStreamSelectorBox = new ComboBox();
+    dataStreamSelectorBox->setBounds(10, 70, 200, 20);
+    dataStreamSelectorBox->addListener(this);
+    addAndMakeVisible(dataStreamSelectorBox);
 
-    channelCountInput = new Label("Channel count", String(node->num_channels));
-    channelCountInput->setFont(Font("Small Text", 10, Font::plain));
-    channelCountInput->setBounds(100, 60, 50, 15);
-    channelCountInput->setColour(Label::backgroundColourId, Colours::lightgrey);
-    channelCountInput->setEditable(true);
-    channelCountInput->addListener(this);
-    addAndMakeVisible(channelCountInput);
+    // Markers stream combo box
+    markerStreamSelectorLabel = new Label("Select a marker stream", "Select a marker stream");
+    markerStreamSelectorLabel->setFont(Font("Small Text", 10, Font::plain));
+    markerStreamSelectorLabel->setBounds(10, 95, 100, 8);
+    markerStreamSelectorLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(markerStreamSelectorLabel);
 
-    xLabel = new Label("X", "X");
-    xLabel->setFont(Font("Small Text", 15, Font::plain));
-    xLabel->setBounds(149, 53, 30, 30);
-    xLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(xLabel);
+    markerStreamSelectorBox = new ComboBox();
+    markerStreamSelectorBox->setBounds(10, 105, 100, 20);
+    markerStreamSelectorBox->addListener(this);
+    addAndMakeVisible(markerStreamSelectorBox);
 
+    // Markers stream mapping
+    markerStreamMappingLabel = new Label("Marker mapping file", "Marker mapping file");
+    markerStreamMappingLabel->setFont(Font("Small Text", 10, Font::plain));
+    markerStreamMappingLabel->setBounds(110, 95, 100, 8);
+    markerStreamMappingLabel->setColour(Label::textColourId, Colours::darkgrey);
+    addAndMakeVisible(markerStreamMappingLabel);
 
-    // Num samples
-    bufferSizeLabel = new Label("SAMPLES", "SAMPLES");
-    bufferSizeLabel->setFont(Font("Small Text", 10, Font::plain));
-    bufferSizeLabel->setBounds(164, 48, 65, 8);
-    bufferSizeLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(bufferSizeLabel);
+    fileButton = new UtilityButton("F:", Font("Small Text", 12, Font::bold));
+    fileButton->setRadius(3.0f);
+    fileButton->setBounds(115, 105, 20, 20);
+    fileButton->addListener(this);
+    addAndMakeVisible(fileButton);
 
-    bufferSizeInput = new Label ("Buffer Size", String(node->num_samp));
-    bufferSizeInput->setFont(Font("Small Text", 10, Font::plain));
-    bufferSizeInput->setBounds(170, 60, 50, 15);
-    bufferSizeInput->setEditable(true);
-    bufferSizeInput->setColour(Label::backgroundColourId, Colours::lightgrey);
-    bufferSizeInput->addListener(this);
-    addAndMakeVisible(bufferSizeInput);
-
-    // Fs
-    sampleRateLabel = new Label("FREQ (HZ)", "FREQ (HZ)");
-    sampleRateLabel->setFont(Font("Small Text", 10, Font::plain));
-    sampleRateLabel->setBounds(5, 92, 85, 8);
-    sampleRateLabel->setColour(Label::textColourId, Colours::darkgrey);
-    addAndMakeVisible(sampleRateLabel);
-
-    sampleRateInput = new Label("Fs (Hz)", String((int) node->sample_rate));
-    sampleRateInput->setFont(Font("Small Text", 10, Font::plain));
-    sampleRateInput->setBounds(10, 105, 65, 15);
-    sampleRateInput->setEditable(true);
-    sampleRateInput->setColour(Label::backgroundColourId, Colours::lightgrey);
-    sampleRateInput->addListener(this);
-    addAndMakeVisible(sampleRateInput);
-
-    //---
+    fileNameLabel = new Label("Selected file", "No file selected");
+    fileNameLabel->setFont(Font("Small Text", 10, Font::plain));
+    fileNameLabel->setBounds(140, 105, 70, 20);
+    fileNameLabel->setEditable(true);
+    fileNameLabel->setEnabled(false);
+    fileNameLabel->setColour(Label::backgroundColourId, Colours::lightgrey);
+    fileNameLabel->addListener(this);
+    addAndMakeVisible(fileNameLabel);
 
     // Scale
     scaleLabel = new Label("Scale", "Scale");
     scaleLabel->setFont(Font("Small Text", 10, Font::plain));
-    scaleLabel->setBounds(85, 92, 65, 8);
+    scaleLabel->setBounds(120, 26, 40, 8);
     scaleLabel->setColour(Label::textColourId, Colours::darkgrey);
     addAndMakeVisible(scaleLabel);
 
-    scaleInput = new Label("Scale", String(node->data_scale));
+    scaleInput = new Label("Scale", String(inletThread->dataScale));
     scaleInput->setFont(Font("Small Text", 10, Font::plain));
-    scaleInput->setBounds(90, 105, 50, 15);
+    scaleInput->setBounds(120, 37, 40, 16);
     scaleInput->setEditable(true);
     scaleInput->setColour(Label::backgroundColourId, Colours::lightgrey);
     scaleInput->addListener(this);
     addAndMakeVisible(scaleInput);
 }
 
-void LSLinletEditor::labelTextChanged(Label* label)
+void LSLInletEditor::startAcquisition()
 {
+    // Disable the whole GUI
+    discoverButton->setEnabled(false);
+    streamSelector->setEnabled(false);
+    fileButton->setEnabled(false);
+    dataStreamSelectorBox->setEnabled(false);
+    markerStreamSelectorBox->setEnabled(false);
+}
 
-    if (label == channelCountInput)
+void LSLInletEditor::stopAcquisition()
+{
+    // Reenable the whole GUI
+    discoverButton->setEnabled(true);
+    streamSelector->setEnabled(true);
+    fileButton->setEnabled(true);
+    dataStreamSelectorBox->setEnabled(true);
+    markerStreamSelectorBox->setEnabled(true);
+}
+
+// Button::Listener
+void LSLInletEditor::buttonClicked(Button *button)
+{
+    if (button == discoverButton)
     {
+        dataStreamSelectorBox->clear();
+        markerStreamSelectorBox->clear();
+        inletThread->discover();
 
-        std::cout << "Label text changed" << std::endl;
+        int selectedDataStreamIndex = STREAM_SELECTION_UNDEFINED;
+        int selectedMarkerStreamIndex = 0;
+        markerStreamSelectorBox->addItem("None", STREAM_SELECTION_UNDEFINED);
 
-        int num_channels = channelCountInput->getText().getIntValue();
-
-        if (num_channels > 0 && num_channels < 1000)
+        for (int i = 0; i < inletThread->availableStreams.size(); i++)
         {
-            node->num_channels = num_channels;
-            CoreServices::updateSignalChain(this);
+            const auto &s = inletThread->availableStreams[i];
+            if (s.nominal_srate() > 0)
+            {
+                dataStreamSelectorBox->addItem(s.name() + " (" + s.type() + ")", i + 1);
+                selectedDataStreamIndex = 0;
+            }
+            else
+            {
+                if (s.channel_count() != 1)
+                {
+                    LOGC("Skipping irregular stream ", s.name(), " because it doesn't have exactly 1 channel.\n", s.as_xml());
+                    continue;
+                }
+                markerStreamSelectorBox->addItem(s.name() + " (" + s.type() + ")", i + 1);
+            }
         }
-        else {
-            channelCountInput->setText(String(node->num_channels), dontSendNotification);
-        }
-        
+
+        dataStreamSelectorBox->setSelectedItemIndex(selectedDataStreamIndex);
+        inletThread->selectedDataStream = selectedDataStreamIndex;
+        markerStreamSelectorBox->setSelectedItemIndex(selectedMarkerStreamIndex);
+        inletThread->selectedMarkersStream = STREAM_SELECTION_UNDEFINED;
+
+        CoreServices::updateSignalChain(this);
     }
-    else if (label == sampleRateInput)
+    else if (button == fileButton)
     {
-        float sampleRate = sampleRateInput->getText().getFloatValue();
+        String supportedFormats = "*.json";
 
-        if (sampleRate > 0 && sampleRate < 50000.0f)
+        FileChooser chooseFileReaderFile("Please select a json file containing the markers mapping...",
+                                         lastFilePath,
+                                         supportedFormats);
+
+        if (chooseFileReaderFile.browseForFileToOpen())
         {
-            node->sample_rate = sampleRate;
-            CoreServices::updateSignalChain(this);
+            if (inletThread->setMarkersMappingPath(chooseFileReaderFile.getResult().getFullPathName().toStdString()))
+            {
+                fileNameLabel->setText(chooseFileReaderFile.getResult().getFileName(), dontSendNotification);
+            }
         }
-        else {
-            sampleRateInput->setText(String(node->sample_rate), dontSendNotification);
-        }
-        
     }
+}
 
-    else if (label == bufferSizeInput)
+// ComboBox::Listener
+void LSLInletEditor::comboBoxChanged(ComboBox *box)
+{
+    if (box == dataStreamSelectorBox)
     {
-        int bufferSize = bufferSizeInput->getText().getIntValue();
+        inletThread->selectedDataStream = box->getSelectedId() - 1;
 
-        if (bufferSize > 0 && bufferSize < 2048)
-        {
-            node->num_samp = bufferSize;
-        }
-        else {
-            bufferSizeInput->setText(String(node->num_samp), dontSendNotification);
-        }
+        inletThread->resizeBuffers();
+
+        CoreServices::updateSignalChain(this);
     }
-    else if (label == scaleInput)
+    else if (box == markerStreamSelectorBox)
+    {
+        if (box->getSelectedId() == STREAM_SELECTION_UNDEFINED)
+        {
+            inletThread->selectedMarkersStream = STREAM_SELECTION_UNDEFINED;
+        }
+        else
+        {
+            inletThread->selectedMarkersStream = box->getSelectedId() - 1;
+        }
+        CoreServices::updateSignalChain(this);
+    }
+}
+
+// Label::Listener
+void LSLInletEditor::labelTextChanged(Label *label)
+{
+    if (label == scaleInput)
     {
         float scale = scaleInput->getText().getFloatValue();
-
-        if (scale > 0.0f && scale < 9999.9f)
+        if (scale > 0.0f && scale <= 10000.0f)
         {
-            node->data_scale = scale;
+            inletThread->dataScale = scale;
         }
-        else {
-            scaleInput->setText(String(node->data_scale), dontSendNotification);
+        else
+        {
+            scaleInput->setText(String(inletThread->dataScale), dontSendNotification);
         }
     }
 }
 
-void LSLinletEditor::startAcquisition()
+void LSLInletEditor::saveCustomParametersToXml(XmlElement *xmlNode)
 {
-    // Disable the whole gui
-    channelCountInput->setEnabled(false);
-    sampleRateInput->setEnabled(false);
-    bufferSizeInput->setEnabled(false);
-    scaleInput->setEnabled(false);
-    connectButton->setEnabled(false);
+    XmlElement *parameters = xmlNode->createNewChildElement("PARAMETERS");
 
-    // Set the channels etc
-    node->data_scale = scaleInput->getText().getFloatValue();
-
-    node->resizeChanSamp();
-}
-
-void LSLinletEditor::stopAcquisition()
-{
-    // Reenable the whole gui
-    channelCountInput->setEnabled(true);
-    sampleRateInput->setEnabled(true);
-    bufferSizeInput->setEnabled(true);
-    scaleInput->setEnabled(true);
-    connectButton->setEnabled(true);
-}
-
-void LSLinletEditor::buttonEvent(Button* button)
-{
-
-    if (button == connectButton)
-    {
-        node->tryToConnect();
-    }
-  
-}
-
-void LSLinletEditor::saveCustomParameters(XmlElement* xmlNode)
-{
-    XmlElement* parameters = xmlNode->createNewChildElement("PARAMETERS");
-
-    parameters->setAttribute("numchan", channelCountInput->getText());
-    parameters->setAttribute("numsamp", bufferSizeInput->getText());
-    parameters->setAttribute("fs", sampleRateInput->getText());
     parameters->setAttribute("scale", scaleInput->getText());
 }
 
-void LSLinletEditor::loadCustomParameters(XmlElement* xmlNode)
+void LSLInletEditor::loadCustomParametersFromXml(XmlElement *xmlNode)
 {
+    //inletThread->discover();
     forEachXmlChildElement(*xmlNode, subNode)
     {
         if (subNode->hasTagName("PARAMETERS"))
         {
-            channelCountInput->setText(subNode->getStringAttribute("numchan", ""), dontSendNotification);
-            node->num_channels = subNode->getIntAttribute("numchan", DEFAULT_NUM_CHANNELS);
-
-            bufferSizeInput->setText(subNode->getStringAttribute("numsamp", ""), dontSendNotification);
-            node->num_samp = subNode->getIntAttribute("numsamp", DEFAULT_NUM_SAMPLES);
-
-            sampleRateInput->setText(subNode->getStringAttribute("fs", ""), dontSendNotification);
-            node->sample_rate = subNode->getDoubleAttribute("fs", DEFAULT_SAMPLE_RATE);
-
-            scaleInput->setText(subNode->getStringAttribute("scale", ""), dontSendNotification);
-            node->data_scale = subNode->getDoubleAttribute("scale", DEFAULT_DATA_SCALE);
-
+            scaleInput->setText(subNode->getStringAttribute("scale", String(DEFAULT_DATA_SCALE)), dontSendNotification);
+            inletThread->dataScale = subNode->getDoubleAttribute("scale", DEFAULT_DATA_SCALE);
         }
+        
+/*        inletThread->selectedDataStream = 0;
+        inletThread->selectedMarkersStream = 0;
+        inletThread->setMarkersMappingPath("C:/Users/JoelN/Documents/TNE/projects/misc-scripts/lsl/event-map.json");
+        */
     }
+    //CoreServices::updateSignalChain(this);
 }
-

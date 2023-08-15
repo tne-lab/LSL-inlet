@@ -45,7 +45,7 @@ else()
 	add_library(${PLUGIN_NAME} SHARED ${SRC_FILES})
 endif()
 
-target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers)
+target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers cxx_std_17)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
 
 set(GUI_BIN_DIR ${GUI_BASE_DIR}/Build/${CONFIGURATION_FOLDER})
@@ -108,35 +108,11 @@ endforeach()
 
 #on windows, copy the dlls when installing
 if (MSVC)
-	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/bin/ DESTINATION ${GUI_BIN_DIR}/shared CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
+	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/windows/bin/ DESTINATION ${GUI_BIN_DIR}/shared CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
+	target_include_directories(${PLUGIN_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/libs/windows/include)
+	target_link_libraries(${PLUGIN_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/libs/windows/lib/lsl.lib)
 elseif(LINUX)
 	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/linux/bin/ DESTINATION ${GUI_BIN_DIR}/shared)
 elseif(APPLE)
 	install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/libs/macos/bin/ DESTINATION $ENV{HOME}/Library/Application\ Support/open-ephys/shared)
 endif()
-
-#additional libraries, if needed
-#find_package(LSL)
-#or
-#set(LSL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/lib/cmake/LSL")
-find_library(LSL_LIBRARIES NAMES lsl)
-find_path(LSL_INCLUDE_DIRS lsl_cpp.h)
-#
-target_link_libraries(${PLUGIN_NAME} ${LSL_LIBRARIES})
-target_include_directories(${PLUGIN_NAME} PRIVATE ${LSL_INCLUDE_DIRS})
-
-# From lsl wiki
-#set(LSL_INSTALL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/libs/cmake/LSL")
-#set(LSL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/lib/cmake/LSL")
-#find_package(LSL 1.15.0 REQUIRED
-#      HINTS ${LSL_INSTALL_ROOT}     
-#      "${CMAKE_CURRENT_SOURCE_DIR}/libs/bin"
-#      "${CMAKE_CURRENT_SOURCE_DIR}/libs/lib"
-#      "${CMAKE_CURRENT_SOURCE_DIR}/libs/include"
-#      PATH_SUFFIXES share/LSL
-#)
-
-#find_path(LSL_INCLUDE_DIRS lsl_cpp.h)
-
-#target_link_libraries(${PLUGIN_NAME} LSL::lsl)
-#target_include_directories(${PLUGIN_NAME} PRIVATE ${LSL_INCLUDE_DIRS})
