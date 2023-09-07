@@ -32,7 +32,8 @@ LSLInletThread::LSLInletThread(SourceNode *sn) : DataThread(sn),
                                                  selectedDataStream(STREAM_SELECTION_UNDEFINED),
     numSamples(DEFAULT_NUM_SAMPLES),
     sample_rate(DEFAULT_SAMPLE_RATE),
-    markerMapPath("")
+    markerMapPath(""),
+    eventLogger("lsl_cpp_events")
 {
     numChannels = 1; // start with 1 channel, will resize the buffers as needed
     // calculate data buffer size instead of using a fixed value if the function of (numChannels, numSamples) can be determined
@@ -164,6 +165,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
                 uint64 eventAsInt = std::stoi(eventSample);
                 if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
                 {
+                    eventLogger.log_event("lsl_ttl_received");
                     ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
                 }
                 std::cout << "LSL: Received event on channel: " << eventAsInt << std::endl;
@@ -177,6 +179,7 @@ void LSLInletThread::readMarkers(std::size_t samples_to_read)
                 uint64 eventAsInt = eventMap[eventSample];
                 if (eventAsInt > 0 && eventAsInt <= MAX_CHANNELS)
                 {
+                    eventLogger.log_event("lsl_ttl_received");
                     ttlEventWords.setUnchecked(0, 1ULL << (eventAsInt - 1));
                 }
                 std::cout << "LSL: Received event on channel: " << eventAsInt << std::endl;

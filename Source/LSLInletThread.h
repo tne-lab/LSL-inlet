@@ -28,6 +28,41 @@
 
 #include <lsl_cpp.h>
 
+
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <string>
+#include <iomanip>  // For std::setprecision
+
+
+
+class EventLogger {
+private:
+    std::string filename;
+    std::ofstream file;
+
+public:
+    EventLogger(const std::string& filename) : filename(filename) {
+        file.open(filename, std::ios::out);  // Open in write mode to overwrite
+        file << std::setprecision(15);  // Set high precision for floating-point numbers
+    }
+
+    ~EventLogger() {
+        file.close();
+    }
+
+    double log_event(const std::string& event_name) {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto timestamp = std::chrono::duration<double>(now.time_since_epoch()).count();
+        file << event_name << "," << timestamp << std::endl;
+        file.flush();  // Flush the buffer to write immediately
+        return timestamp;
+    }
+};
+
+
+
 const float DEFAULT_SAMPLE_RATE = 10000.0f;
 const float DEFAULT_DATA_SCALE = 1.0f;
 const int DEFAULT_NUM_SAMPLES = 256;
@@ -131,6 +166,8 @@ private:
     // Number of samples to pull from the LSL each iteration
     int numSamples;
     float sample_rate;
+
+    EventLogger eventLogger;
 };
 
 #endif
